@@ -1,74 +1,158 @@
-import { Image, StyleSheet, Platform } from 'react-native';
-
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import React, { useRef, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  SafeAreaView, 
+  Animated, 
+  TouchableOpacity, 
+  ScrollView, 
+  FlatList 
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { AntDesign } from '@expo/vector-icons';
 
 export default function HomeScreen() {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const router = useRouter();
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
+
+  const goToFavorite = () => {
+    router.push('/favorites');
+  };
+
+  const goToFriends = () => {
+    router.push('/friends');
+  };
+
+  const Poster = ({ title }: { title: string }) => (
+    <View style={styles.poster}>
+      <Text style={styles.posterText}>{title}</Text>
+    </View>
+  );
+
+  const renderPosterRow = (data: string[]) => (
+    <FlatList
+      data={data}
+      keyExtractor={(item, index) => `${item}-${index}`}
+      renderItem={({ item }) => <Poster title={item} />}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ gap: 12 }}
+    />
+  );
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <SafeAreaView style={styles.container}>
+      <LinearGradient colors={['#0f0f0f', '#1a1a1a']} style={StyleSheet.absoluteFill} />
+
+      <View style={styles.header}>
+        <Text style={styles.logo}>CPH:DOX</Text>
+      </View>
+
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <Text style={styles.title}>Welcome to the DOX Festival App</Text>
+          <Text style={styles.subtitle}>
+            Explore your favorite films and discover what your friends are watching.
+          </Text>
+
+          {/* My Favorites Section */}
+          <View style={styles.section}>
+            <TouchableOpacity style={styles.sectionHeader} onPress={goToFavorite}>
+              <Text style={styles.sectionTitle}>My Favorites</Text>
+              <AntDesign name="right" size={16} color="#fff" />
+            </TouchableOpacity>
+            {renderPosterRow(['The Silent Forest', 'Dystopia Dreams', 'Echoes of Nature', 'Reflections'])}
+          </View>
+
+          {/* Friends' Favorites Section */}
+          <View style={styles.section}>
+            <TouchableOpacity style={styles.sectionHeader} onPress={goToFriends}>
+              <Text style={styles.sectionTitle}>Friends' Favorites</Text>
+              <AntDesign name="right" size={16} color="#fff" />
+            </TouchableOpacity>
+            {renderPosterRow(['Ghosts of CPH', 'Beyond the Frame', 'Parallel Voices', 'Lost in Light'])}
+          </View>
+        </ScrollView>
+      </Animated.View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: { 
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  header: { 
+    height: 60, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    paddingTop: 10,
+  },
+  logo: { 
+    fontSize: 28, 
+    fontWeight: 'bold', 
+    color: '#fff', 
+    letterSpacing: 1.5,
+  },
+  content: { 
+    flex: 1, 
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  title: { 
+    fontSize: 24, 
+    color: '#fff', 
+    fontWeight: '600', 
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  subtitle: { 
+    fontSize: 16, 
+    color: '#aaa', 
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  section: {
+    marginBottom: 30,
+  },
+  sectionHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 12,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  poster: {
+    width: 110,
+    height: 165,
+    backgroundColor: '#333',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
   },
+  posterText: {
+    color: '#fff',
+    fontSize: 13,
+    textAlign: 'center',
+    paddingHorizontal: 6,
+  }
 });
