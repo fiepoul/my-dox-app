@@ -1,5 +1,6 @@
 // app/(tabs)/schedule.tsx
 import React, { useState, useEffect } from "react";
+import { useRouter } from "expo-router";
 import {
   SafeAreaView,
   View,
@@ -19,6 +20,7 @@ import { fetchSchedule } from "../api/doxFilmApi";
 const FESTIVAL_ISO_DATES = ["2025-05-05", "2025-05-06", "2025-05-07"];
 
 export default function ScheduleScreen() {
+  const router = useRouter();
   // 1) Byg en liste af Date-objekter, og find startdato
   const festivalDates = FESTIVAL_ISO_DATES.map(d => new Date(d));
   const todayISO = format(new Date(), "yyyy-MM-dd");
@@ -112,6 +114,10 @@ export default function ScheduleScreen() {
             <View key={i} style={styles.timeBlock}>
               <Text style={styles.time}>{block.time}</Text>
               {block.events.map((ev, j) => (
+          <Pressable
+                     key={j}
+                     onPress={() => router.push({ pathname: "/movie/[id]", params: { id: ev.id.toString() } })}
+                  >
                 <BlurView
                   key={j}
                   intensity={50}
@@ -126,6 +132,7 @@ export default function ScheduleScreen() {
                     <Text style={styles.location}>{ev.cinema}</Text>
                   </LinearGradient>
                 </BlurView>
+                </Pressable>
               ))}
             </View>
           ))}

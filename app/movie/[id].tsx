@@ -9,8 +9,8 @@ import {
   TouchableOpacity
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { fetchDoxFilms } from './api/doxFilmApi';
-import type { Film } from './types/filmTypes';
+import { fetchDoxFilms } from '../api/doxFilmApi';
+import type { Film } from '../types/filmTypes';
 
 export default function MovieScreen() {
   const router = useRouter();

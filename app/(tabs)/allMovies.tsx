@@ -25,7 +25,10 @@ export default function AllFilmsScreen() {
   }, []);
 
   const handlePress = (id: number) => {
-    router.push({ pathname: '/movie', params: { id: id.toString() } });
+    router.push({
+      pathname: '/movie/[id]',
+      params: { id: id.toString() },
+    });
   };
 
   const renderFilm = ({ item }: { item: Film }) => (
