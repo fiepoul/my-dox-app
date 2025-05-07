@@ -1,7 +1,9 @@
-export type Schedule = {
-  date: string;
+export type ScheduleBlock = {
   time: string;
-  cinema: string;
+  events: {
+    title: string;
+    cinema: string;
+  }[];
 };
 
 export type Film = {
@@ -15,7 +17,7 @@ export type Film = {
   country?: string | null;
   tagline?: string | null;
   category?: string | null;
-  schedules: Schedule[];
+
 };
 
   

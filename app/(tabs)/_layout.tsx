@@ -8,6 +8,7 @@ import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import HeaderWithLogout from '@/components/HeaderWithLogout';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -21,32 +22,49 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
         tabBarStyle: Platform.select({
-          ios: {
-            position: 'absolute', // Transparent baggrund på iOS for at vise blur-effekt
-          },
+          ios: { position: 'absolute' },
           default: {},
         }),
       }}
     >
+      {/* Home Tab */}
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="home-outline" size={28} color={color} />,
         }}
       />
+      {/* Favorites Tab */}
       <Tabs.Screen
         name="favorites"
         options={{
           title: 'Favorites',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="heart.fill" color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="heart-outline" size={28} color={color} />,
         }}
       />
+      {/* Friends Tab */}
       <Tabs.Screen
         name="friends"
         options={{
           title: 'Friends',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.2.fill" color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="people-outline" size={28} color={color} />,
+        }}
+      />
+      {/* Movies Tab (rename your allMovies.tsx to movies.tsx if needed) */}
+      <Tabs.Screen
+        name="allMovies"
+        options={{
+          title: 'Movies',
+          tabBarIcon: ({ color }) => <Ionicons name="film-outline" size={28} color={color} />,
+        }}
+      />
+      {/* Schedule Tab */}
+      <Tabs.Screen
+        name="schedule"
+        options={{
+          title: 'Schedule',
+          tabBarIcon: ({ color }) => <Ionicons name="calendar-outline" size={28} color={color} />,
         }}
       />
     </Tabs>

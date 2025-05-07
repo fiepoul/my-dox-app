@@ -1,59 +1,83 @@
 // components/HeaderWithLogout.tsx
-import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Pressable, StyleSheet, Animated, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { signOut } from 'firebase/auth';
 import { auth } from '../app/_config/firebaseconfig';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
 export default function HeaderWithLogout() {
   const router = useRouter();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const handleLogout = async () => {
-    console.log('🔴 handleLogout triggered');
+    if (Platform.OS !== 'web') {
+      Haptics.selectionAsync();
+    }
     try {
       await signOut(auth);
-      console.log('✅ signOut succeeded, navigating to login');
       router.replace('/login');
     } catch (e) {
-      console.error('❌ signOut failed', e);
-      // Du kan evt. vise en fejl-alert her
+      console.error('Logout error:', e);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>CPH DOX App</Text>
-      <Pressable
-        onPress={handleLogout}
-        style={styles.logoutButton}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
-        <Text style={styles.logout}>Log out</Text>
-      </Pressable>
-    </View>
+    <Animated.View style={[styles.wrapper, { opacity: fadeAnim, paddingTop: insets.top }]}>       
+      <View style={styles.container}>
+        <View style={styles.titleWrapper}>
+          <Text style={styles.title}>CPH:DOX</Text>
+        </View>
+        <Pressable
+          onPress={handleLogout}
+          style={styles.logoutButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="log-out-outline" size={24} color="#ff5f6d" />
+        </Pressable>
+      </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  wrapper: {
+    width: '100%',
+    position: 'absolute',
+    top: 0,
     backgroundColor: '#000',
+    zIndex: 999,
+  },
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  titleWrapper: {
+    flex: 1,
+    alignItems: 'center',
   },
   title: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  logout: {
-    color: '#ff5f6d',
-    fontWeight: '500',
+    fontSize: 32,
+    fontWeight: '900',
+    letterSpacing: 4,
+    textTransform: 'uppercase',
   },
   logoutButton: {
-    padding: 8,
+    padding: 6,
   },
 });

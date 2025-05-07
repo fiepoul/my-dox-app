@@ -8,12 +8,13 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
+  ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './_config/firebaseconfig';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 
 export default function LoginScreen() {
@@ -28,11 +29,15 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
       router.replace('/');
     } catch (e: any) {
-      setError('Forkert email eller kodeord');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError('Wrong email or password');
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
     } finally {
       setLoading(false);
     }
@@ -44,12 +49,12 @@ export default function LoginScreen() {
       style={styles.container}
     >
       <LinearGradient
-        colors={['#000000', '#1a1a1a']}
+        colors={['#0a0a0a', '#1c1c1c']}
         style={styles.background}
       />
 
       <View style={styles.inner}>
-        <Text style={styles.title}>Velkommen tilbage</Text>
+        <Text style={styles.title}>Welcome Back</Text>
 
         {error && (
           <View style={styles.errorBox}>
@@ -57,36 +62,38 @@ export default function LoginScreen() {
           </View>
         )}
 
-        <TextInput
-          placeholder="Email"
-          placeholderTextColor="#aaa"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          placeholder="Kodeord"
-          placeholderTextColor="#aaa"
-          secureTextEntry
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-        />
+        <BlurView intensity={80} style={styles.card} tint="dark">
+          <TextInput
+            placeholder="Email"
+            placeholderTextColor="#ccc"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TextInput
+            placeholder="Password"
+            placeholderTextColor="#ccc"
+            secureTextEntry
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+          />
 
-        <Pressable onPress={handleLogin} style={styles.button}>
-          <LinearGradient
-            colors={['#ff5f6d', '#ffc371']}
-            style={styles.buttonBackground}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Log ind</Text>
-            )}
-          </LinearGradient>
-        </Pressable>
+          <Pressable onPress={handleLogin} style={styles.button} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <LinearGradient
+              colors={['#ff5f6d', '#ffc371']}
+              style={styles.buttonBackground}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Log In</Text>
+              )}
+            </LinearGradient>
+          </Pressable>
+        </BlurView>
       </View>
     </KeyboardAvoidingView>
   );
@@ -102,19 +109,29 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#fff',
-    fontSize: 28,
-    fontWeight: '600',
+    fontSize: 32,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
+  },
+  card: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     color: '#fff',
     padding: 14,
     borderRadius: 10,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   button: {
     marginTop: 8,
@@ -122,23 +139,24 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   buttonBackground: {
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: 'center',
     borderRadius: 12,
   },
   buttonText: {
     color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
+    fontWeight: '700',
+    fontSize: 18,
   },
   errorBox: {
-    backgroundColor: '#ff4444',
+    backgroundColor: 'rgba(255,68,68,0.8)',
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     marginBottom: 16,
   },
   errorText: {
     color: '#fff',
     textAlign: 'center',
+    fontSize: 14,
   },
 });
