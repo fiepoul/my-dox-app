@@ -1,74 +1,114 @@
-// app/favorites.tsx
-import React, { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+// app/(tabs)/favorites.tsx
+import React, { useEffect, useState } from 'react'
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  Pressable,
+  ActivityIndicator,
+} from 'react-native'
+import { fetchDoxFilms } from '../api/doxFilmApi'
+import {
+  fetchFavorites,
+  removeFavorite,
+} from '../api/favoritesApi'
+import type { Film } from '../types/filmTypes'
 
 export default function FavoritesScreen() {
-  // Dummy-data for brugerens egne favoritter
-  const [myFavorites] = useState([
-    { id: '1', title: 'Dokumentar 1' },
-    { id: '2', title: 'Film 2' },
-    { id: '3', title: 'Dokumentar 3' },
-  ]);
+  const [allFilms, setAllFilms] = useState<Film[]>([])
+  const [favIds, setFavIds] = useState<Set<string>>(new Set())
+  const [loading, setLoading] = useState(true)
 
-  // Dummy-data for venners favoritter
-  const [friendsFavorites] = useState([
-    { id: '4', title: 'Venners Dokumentar 1', friendName: 'Maja' },
-    { id: '5', title: 'Venners Film 2', friendName: 'Lars' },
-  ]);
+  useEffect(() => {
+    let alive = true
 
-  const renderMyFavoriteItem = ({ item }: { item: { id: string; title: string } }) => (
-    <View style={styles.itemContainer}>
-      <Text style={styles.itemTitle}>{item.title}</Text>
-    </View>
-  );
+    Promise.all([
+      fetchDoxFilms(),    // your films API
+      fetchFavorites(),   // returns Promise<{ id: string; title: string; posterUrl?: string }[]>
+    ])
+      .then(([films, favArray]) => {
+        if (!alive) return
+        setAllFilms(films)
 
-  const renderFriendFavoriteItem = ({ item }: { item: { id: string; title: string; friendName: string } }) => (
-    <View style={styles.itemContainer}>
-      <Text style={styles.itemTitle}>{item.title}</Text>
-      <Text style={styles.friendName}>– {item.friendName}</Text>
-    </View>
-  );
+        // build a Set<string> of just the IDs:
+        const idSet = new Set<string>(favArray.map((f) => f.id))
+        setFavIds(idSet)
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const handleRemove = async (filmId: number) => {
+    try {
+      await removeFavorite(filmId)
+      // remove from local Set
+      const clone = new Set(favIds)
+      clone.delete(filmId.toString())
+      setFavIds(clone)
+    } catch (e) {
+      console.error('Could not remove favorite', e)
+    }
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+      </View>
+    )
+  }
+
+  const favFilms = allFilms.filter((f) => favIds.has(f.id.toString()))
+
+  if (favFilms.length === 0) {
+    return (
+      <View style={styles.center}>
+        <Text>Ingen favoritter endnu</Text>
+      </View>
+    )
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Topbar med logo og profilknap */}
-      <View style={styles.topBar}>
-        <Text style={styles.logo}>CPH:DOX</Text>
-        <TouchableOpacity style={styles.profileButton} onPress={() => { /* Naviger til profil om nødvendigt */ }}>
-          <Text style={styles.profileText}>Profil</Text>
-        </TouchableOpacity>
-      </View>
-      {/* Sektion: My Favorites */}
-      <View style={styles.section}>
-        <Text style={styles.sectionHeader}>My Favorites</Text>
-        <FlatList
-          data={myFavorites}
-          keyExtractor={(item) => item.id}
-          renderItem={renderMyFavoriteItem}
-        />
-      </View>
-      {/* Sektion: Friends' Favorites */}
-      <View style={styles.section}>
-        <Text style={styles.sectionHeader}>Friends' Favorites</Text>
-        <FlatList
-          data={friendsFavorites}
-          keyExtractor={(item) => item.id}
-          renderItem={renderFriendFavoriteItem}
-        />
-      </View>
-    </SafeAreaView>
-  );
+    <FlatList
+      data={favFilms}
+      keyExtractor={(item) => item.id.toString()}
+      contentContainerStyle={styles.list}
+      renderItem={({ item }) => (
+        <View style={styles.card}>
+          <Text style={styles.title}>{item.title}</Text>
+          <Pressable
+            onPress={() => handleRemove(item.id)}
+            style={styles.button}
+          >
+            <Text style={styles.buttonText}>Fjern</Text>
+          </Pressable>
+        </View>
+      )}
+    />
+  )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000', padding: 16 },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-  logo: { fontSize: 22, color: '#fff', fontWeight: 'bold' },
-  profileButton: { padding: 8, backgroundColor: '#444', borderRadius: 8 },
-  profileText: { color: '#fff' },
-  section: { marginVertical: 12 },
-  sectionHeader: { fontSize: 20, color: '#fff', marginBottom: 8 },
-  itemContainer: { padding: 12, backgroundColor: '#222', borderRadius: 8, marginBottom: 8 },
-  itemTitle: { fontSize: 16, color: '#fff' },
-  friendName: { fontSize: 14, color: '#ccc', marginTop: 4 },
-});
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  list: { padding: 16 },
+  card: {
+    backgroundColor: '#fff',
+    padding: 12,
+    marginBottom: 12,
+    borderRadius: 8,
+    elevation: 2,
+  },
+  title: { fontSize: 16, marginBottom: 8 },
+  button: {
+    alignSelf: 'flex-end',
+    padding: 6,
+    backgroundColor: '#ff5f6d',
+    borderRadius: 4,
+  },
+  buttonText: { color: '#fff' },
+})

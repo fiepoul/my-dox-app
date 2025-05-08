@@ -1,3 +1,4 @@
+// app/(tabs)/allMovies.tsx
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -10,18 +11,35 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { fetchDoxFilms } from '../api/doxFilmApi';
+import {
+  addFavorite,
+  removeFavorite,
+  fetchFavorites
+} from '../api/favoritesApi';
 import type { Film } from '../types/filmTypes';
 
 export default function AllFilmsScreen() {
   const router = useRouter();
   const [films, setFilms] = useState<Film[]>([]);
+  const [favIds, setFavIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDoxFilms()
-      .then((data: Film[]) => setFilms(data))
-      .catch((err) => console.error('Fetch error:', err))
-      .finally(() => setLoading(false));
+    let alive = true;
+    Promise.all([fetchDoxFilms(), fetchFavorites()])
+      .then(([filmsData, favArray]) => {
+        if (!alive) return;
+        setFilms(filmsData);
+        // make a Set<string> of fav IDs
+        const favSet = new Set(favArray.map(f => f.id));
+        setFavIds(favSet);
+      })
+      .catch(err => console.error('Fetch error:', err))
+      .finally(() => alive && setLoading(false));
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const handlePress = (id: number) => {
@@ -31,14 +49,55 @@ export default function AllFilmsScreen() {
     });
   };
 
-  const renderFilm = ({ item }: { item: Film }) => (
-    <TouchableOpacity style={styles.card} onPress={() => handlePress(item.id)}>
-      <View style={styles.posterPlaceholder}>
-        <Text style={styles.posterText}>Plakat</Text>
+  // now takes the whole Film object so we can pass id:number → removeFavorite
+  // and the full {id,title,posterUrl?} → addFavorite
+  const toggleFavorite = async (film: Film) => {
+    const idStr = film.id.toString();
+    const newSet = new Set(favIds);
+
+    if (newSet.has(idStr)) {
+      await removeFavorite(film.id);
+      newSet.delete(idStr);
+    } else {
+      await addFavorite({
+        id: film.id,
+        title: film.title,
+        posterUrl: film.posterUrl ?? undefined,
+      });
+      newSet.add(idStr);
+    }
+
+    setFavIds(newSet);
+  };
+
+  const renderFilm = ({ item }: { item: Film }) => {
+    const idStr = item.id.toString();
+    const isFav = favIds.has(idStr);
+
+    return (
+      <View style={styles.card}>
+        <TouchableOpacity
+          style={styles.posterPlaceholder}
+          onPress={() => handlePress(item.id)}
+        >
+          <Text style={styles.posterText}>Plakat</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.cardTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+
+        <TouchableOpacity
+          onPress={() => toggleFavorite(item)}
+          style={styles.favoriteButton}
+        >
+          <Text style={[styles.heart, isFav && styles.heartFav]}>
+            {isFav ? '♥' : '♡'}
+          </Text>
+        </TouchableOpacity>
       </View>
-      <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -62,7 +121,6 @@ export default function AllFilmsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* DOX Style Overskrift */}
       <View style={styles.headerContainer}>
         <Text style={styles.headerTitle}>DOX:FILMS</Text>
       </View>
@@ -115,13 +173,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     overflow: 'hidden',
-    // iOS shadow
+    position: 'relative',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    // Android shadow
     elevation: 3,
+    paddingBottom: 8,
   },
   posterPlaceholder: {
     width: '100%',
@@ -137,10 +195,22 @@ const styles = StyleSheet.create({
   cardTitle: {
     marginTop: 8,
     marginHorizontal: 8,
-    marginBottom: 12,
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
     color: '#333',
+  },
+  favoriteButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    padding: 4,
+  },
+  heart: {
+    fontSize: 20,
+    color: '#888',
+  },
+  heartFav: {
+    color: '#ff5f6d',
   },
 });
