@@ -1,6 +1,8 @@
 // app/login.tsx
-import React, { useState } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import {
+  SafeAreaView,
   View,
   Text,
   TextInput,
@@ -8,14 +10,21 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Dimensions,
+  Animated,
+  Easing,
+  Keyboard,
+  TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './_config/firebaseconfig';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const SHAPE_SIZE = 180;
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -23,149 +32,261 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Animations
+  const circleAnim = useRef(new Animated.Value(0)).current;
+  const rectAnim   = useRef(new Animated.Value(0)).current;
+  const meltAnim   = useRef(new Animated.Value(0)).current;
+  const formFade   = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Load email history
+    AsyncStorage.getItem('previousEmails').then(stored => {
+      if (stored) setSuggestions(JSON.parse(stored));
+    });
+    // Animate shapes
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(circleAnim, { toValue:1, duration:6000, easing:Easing.linear, useNativeDriver:true }),
+        Animated.timing(circleAnim, { toValue:0, duration:6000, easing:Easing.linear, useNativeDriver:true }),
+      ])
+    ).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(rectAnim, { toValue:1, duration:8000, easing:Easing.inOut(Easing.ease), useNativeDriver:true }),
+        Animated.timing(rectAnim, { toValue:0, duration:8000, easing:Easing.inOut(Easing.ease), useNativeDriver:true }),
+      ])
+    ).start();
+    // Heading “melt”
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(meltAnim, { toValue:1, duration:2000, easing:Easing.inOut(Easing.quad), useNativeDriver:true }),
+        Animated.timing(meltAnim, { toValue:0, duration:2000, easing:Easing.inOut(Easing.quad), useNativeDriver:true }),
+      ])
+    ).start();
+    // Fade in form
+    Animated.timing(formFade, { toValue:1, delay:800, duration:600, easing:Easing.out(Easing.exp), useNativeDriver:true }).start();
+  }, []);
 
   const handleLogin = async () => {
     setError(null);
     setLoading(true);
+    Keyboard.dismiss();
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const stored = await AsyncStorage.getItem('previousEmails');
+      const list = stored ? JSON.parse(stored) : [];
+      if (!list.includes(email.trim())) {
+        await AsyncStorage.setItem('previousEmails', JSON.stringify([email.trim(), ...list].slice(0,5)));
       }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/');
-    } catch (e: any) {
+    } catch {
       setError('Wrong email or password');
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
     }
   };
 
+  const filtered = suggestions.filter(e =>
+    e.toLowerCase().startsWith(email.toLowerCase()) && email.length > 0
+  );
+
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS==='ios'?'padding':undefined}
       style={styles.container}
     >
-      <LinearGradient
-        colors={['#0a0a0a', '#1c1c1c']}
-        style={styles.background}
+      {/* moving abstract shapes */}
+      <Animated.View
+        style={[
+          styles.shapeCircle,
+          {
+            transform: [
+              { translateX: circleAnim.interpolate({ inputRange:[0,1], outputRange:[-SHAPE_SIZE, SCREEN_WIDTH*0.6] }) },
+              { translateY: circleAnim.interpolate({ inputRange:[0,1], outputRange:[-SHAPE_SIZE*0.5, SCREEN_HEIGHT*0.2] }) },
+            ],
+          },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.shapeRect,
+          {
+            transform: [
+              { rotate: rectAnim.interpolate({ inputRange:[0,1], outputRange:['0deg','360deg'] }) }
+            ],
+          },
+        ]}
       />
 
-      <View style={styles.inner}>
-        <Text style={styles.title}>Welcome Back</Text>
+      <SafeAreaView style={styles.inner}>
+        {/* CPH:DOX title */}
+        <Animated.Text
+          style={[
+            styles.appTitle,
+            {
+              transform: [
+                { skewX: meltAnim.interpolate({ inputRange:[0,1], outputRange:['0deg','10deg'] }) },
+                { translateY: meltAnim.interpolate({ inputRange:[0,1], outputRange:[0,10] }) },
+              ],
+              opacity: meltAnim.interpolate({ inputRange:[0,1], outputRange:[1,0.8] }),
+            },
+          ]}
+        >
+          CPH:DOX
+        </Animated.Text>
+
+        {/* Short tagline */}
+        <Text style={styles.tagline}>
+          Dive into the festival universe.
+        </Text>
+
+        {/* Login form */}
+        <Animated.View style={{ opacity: formFade, width: '90%', maxWidth: 320 }}>
+          <View style={styles.frame}>
+            <TextInput
+              placeholder="Email"
+              placeholderTextColor="#555"
+              style={styles.input}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={t => { setEmail(t); setShowSuggestions(true); }}
+              onFocus={() => setShowSuggestions(true)}
+            />
+            {showSuggestions && filtered.length > 0 && (
+              <View style={styles.suggestionList}>
+                {filtered.slice(0,5).map(item => (
+                  <TouchableOpacity key={item} onPress={() => { setEmail(item); setShowSuggestions(false); }}>
+                    <Text style={styles.suggestion}>{item}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <TextInput
+              placeholder="Password"
+              placeholderTextColor="#555"
+              secureTextEntry
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+            />
+
+            <Pressable onPress={handleLogin} style={styles.loginButton} hitSlop={10}>
+              {loading
+                ? <ActivityIndicator color="#fff"/>
+                : <Text style={styles.loginText}>LOGIN</Text>
+              }
+            </Pressable>
+
+            <Pressable onPress={() => router.push('/signup')} style={styles.signupButton}>
+              <Text style={styles.signupText}>SIGN UP</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
 
         {error && (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
-
-        <BlurView intensity={80} style={styles.card} tint="dark">
-          <TextInput
-            placeholder="Email"
-            placeholderTextColor="#ccc"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-          />
-          <TextInput
-            placeholder="Password"
-            placeholderTextColor="#ccc"
-            secureTextEntry
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-          />
-
-          <Pressable onPress={handleLogin} style={styles.button} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <LinearGradient
-              colors={['#ff5f6d', '#ffc371']}
-              style={styles.buttonBackground}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Log In</Text>
-              )}
-            </LinearGradient>
-          </Pressable>
-          <Pressable onPress={() => router.push('/signup')}>
-    <Text style={styles.switchText}>No account? Sign up here →</Text>
-</Pressable>
-        </BlurView>
-      </View>
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  background: { ...StyleSheet.absoluteFillObject },
+  container: { flex: 1, backgroundColor: '#fff' },
   inner: {
     flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
-  title: {
-    color: '#fff',
-    fontSize: 32,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 24,
+  shapeCircle: {
+    position: 'absolute',
+    width: SHAPE_SIZE,
+    height: SHAPE_SIZE,
+    borderRadius: SHAPE_SIZE/2,
+    backgroundColor: 'rgba(0,68,255,0.1)',
   },
-  card: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 16,
+  shapeRect: {
+    position: 'absolute',
+    width: SHAPE_SIZE*1.2,
+    height: SHAPE_SIZE*0.5,
+    backgroundColor: 'rgba(255,64,129,0.1)',
+  },
+  appTitle: {
+    fontSize: 36,
+    fontWeight: '900',
+    letterSpacing: 6,
+    color: '#0047ff',
+    marginBottom: 8,
+  },
+  tagline: {
+    fontSize: 16,
+    color: '#555',
+    fontStyle: 'italic',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  frame: {
+    borderWidth: 2,
+    borderColor: '#000',
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    color: '#fff',
-    padding: 14,
-    borderRadius: 10,
+    borderBottomWidth: 1,
+    borderColor: '#ccc',
+    paddingVertical: 12,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    fontSize: 16,
   },
-  button: {
-    marginTop: 8,
-    borderRadius: 12,
-    overflow: 'hidden',
+  suggestionList: {
+    marginBottom: 16,
+    backgroundColor: '#fafafa',
   },
-  buttonBackground: {
-    paddingVertical: 16,
+  suggestion: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderColor: '#eee',
+  },
+  loginButton: {
+    backgroundColor: '#0047ff',
+    paddingVertical: 14,
     alignItems: 'center',
-    borderRadius: 12,
+    marginBottom: 12,
   },
-  buttonText: {
+  loginText: {
     color: '#fff',
+    fontWeight: '900',
+    fontSize: 16,
+    letterSpacing: 2,
+  },
+  signupButton: {
+    borderWidth: 1,
+    borderColor: '#0047ff',
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  signupText: {
+    color: '#0047ff',
     fontWeight: '700',
-    fontSize: 18,
+    fontSize: 16,
+    letterSpacing: 1,
   },
   errorBox: {
-    backgroundColor: 'rgba(255,68,68,0.8)',
+    marginTop: 16,
+    backgroundColor: 'rgba(255,68,68,0.1)',
     padding: 12,
-    borderRadius: 10,
-    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ff5f6d',
   },
   errorText: {
-    color: '#fff',
-    textAlign: 'center',
-    fontSize: 14,
-  },
-  switchText: {
-    color: '#fff',
-    textAlign: 'center',
-    marginTop: 12,
-    textDecorationLine: 'underline',
+    color: '#990000',
   },
 });

@@ -1,4 +1,3 @@
-// components/HeaderWithLogout.tsx
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,7 +43,7 @@ export default function HeaderWithLogout() {
           style={styles.logoutButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="log-out-outline" size={24} color="#ff5f6d" />
+          <Ionicons name="log-out-outline" size={24} color="#000" />
         </Pressable>
       </View>
     </Animated.View>
@@ -56,7 +55,7 @@ const styles = StyleSheet.create({
     width: '100%',
     position: 'absolute',
     top: 0,
-    backgroundColor: '#000',
+    backgroundColor: '#fff', // matcher din nye hvide header
     zIndex: 999,
   },
   container: {
@@ -71,7 +70,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    color: '#fff',
+    color: '#000', // sort tekst for bedre kontrast
     fontSize: 32,
     fontWeight: '900',
     letterSpacing: 4,

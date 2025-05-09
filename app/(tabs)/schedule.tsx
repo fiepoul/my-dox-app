@@ -1,17 +1,19 @@
 // app/(tabs)/schedule.tsx
-import React, { useState, useEffect } from "react";
+
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
 import {
   SafeAreaView,
   View,
   Text,
   StyleSheet,
+  Animated,
   ScrollView,
   ActivityIndicator,
   Pressable,
+  StatusBar,
+  Platform,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 import { format } from "date-fns";
 
 import type { ScheduleBlock } from "../types/filmTypes";
@@ -21,7 +23,6 @@ const FESTIVAL_ISO_DATES = ["2025-05-05", "2025-05-06", "2025-05-07"];
 
 export default function ScheduleScreen() {
   const router = useRouter();
-  // 1) Byg en liste af Date-objekter, og find startdato
   const festivalDates = FESTIVAL_ISO_DATES.map(d => new Date(d));
   const todayISO = format(new Date(), "yyyy-MM-dd");
   const initialDate =
@@ -32,7 +33,6 @@ export default function ScheduleScreen() {
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isToday = format(currentDate, "yyyy-MM-dd") === todayISO;
 
   const isoDate = format(currentDate, "yyyy-MM-dd");
   const currentIndex = festivalDates.findIndex(
@@ -41,7 +41,16 @@ export default function ScheduleScreen() {
   const canPrev = currentIndex > 0;
   const canNext = currentIndex < festivalDates.length - 1;
 
-  // 2) Hent dine blocks for den valgte dato
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  }, [isoDate]);
+
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -49,64 +58,56 @@ export default function ScheduleScreen() {
 
     fetchSchedule(isoDate)
       .then(fetched => {
-        if (!alive) return;
-        setBlocks(fetched);
+        if (alive) setBlocks(fetched);
       })
       .catch(e => {
         console.error("Schedule fetch error:", e);
-        if (alive) setError("Kunne ikke hente programmet");
+        if (alive) setError("Could not load schedule");
       })
       .finally(() => {
         if (alive) setLoading(false);
       });
 
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false };
   }, [isoDate]);
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={["#0f0f0f", "#1a1a1a"]}
-        style={StyleSheet.absoluteFill}
-      />
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* Header med pil, dato og pil */}
+      {/* Header */}
       <View style={styles.header}>
         <Pressable
           onPress={() => canPrev && setCurrentDate(festivalDates[currentIndex - 1])}
           disabled={!canPrev}
         >
-          <Text style={[styles.arrow, !canPrev && styles.arrowDisabled]}>
-            ‹
-          </Text>
+          <Text style={[styles.arrow, !canPrev && styles.arrowDisabled]}>‹</Text>
         </Pressable>
 
-        <Text style={styles.title}>
-    {isToday ? "Today's Screenings" : format(currentDate, "dd MMM yyyy")}
-  </Text>
+        <View style={styles.dateContainer}>
+          <Text style={styles.weekday}>
+            {format(currentDate, "EEEE").toUpperCase()}
+          </Text>
+          <Text style={styles.dateText}>
+            {format(currentDate, "dd MMM yyyy")}
+          </Text>
+        </View>
 
         <Pressable
           onPress={() => canNext && setCurrentDate(festivalDates[currentIndex + 1])}
           disabled={!canNext}
         >
-          <Text style={[styles.arrow, !canNext && styles.arrowDisabled]}>
-            ›
-          </Text>
+          <Text style={[styles.arrow, !canNext && styles.arrowDisabled]}>›</Text>
         </Pressable>
       </View>
 
       {loading ? (
-        <ActivityIndicator
-          size="large"
-          color="#ff5f6d"
-          style={styles.loader}
-        />
+        <ActivityIndicator size="large" color="#0047ff" style={styles.loader} />
       ) : error ? (
         <Text style={styles.errorText}>{error}</Text>
       ) : (
-        <ScrollView
+        <Animated.ScrollView
+          style={{ opacity: fadeAnim }}
           contentContainerStyle={styles.scrollArea}
           showsVerticalScrollIndicator={false}
         >
@@ -114,69 +115,126 @@ export default function ScheduleScreen() {
             <View key={i} style={styles.timeBlock}>
               <Text style={styles.time}>{block.time}</Text>
               {block.events.map((ev, j) => (
-          <Pressable
-                     key={j}
-                     onPress={() => router.push({ pathname: "/movie/[id]", params: { id: ev.id.toString() } })}
-                  >
-                <BlurView
+                <Pressable
                   key={j}
-                  intensity={50}
-                  tint="dark"
+                  onPress={() =>
+                    router.push({ pathname: "/movie/[id]", params: { id: ev.id.toString() } })
+                  }
                   style={styles.cardWrapper}
                 >
-                  <LinearGradient
-                    colors={["rgba(28,28,28,0.8)", "rgba(0,0,0,0.6)"]}
-                    style={styles.card}
-                  >
-                    <Text style={styles.eventTitle}>{ev.title}</Text>
-                    <Text style={styles.location}>{ev.cinema}</Text>
-                  </LinearGradient>
-                </BlurView>
+                  <View style={styles.card}>
+                    <View style={styles.accentBar} />
+                    <View style={styles.cardContent}>
+                      <Text style={styles.eventTitle}>{ev.title.toUpperCase()}</Text>
+                      <Text style={styles.location}>{ev.cinema.toUpperCase()}</Text>
+                    </View>
+                  </View>
                 </Pressable>
               ))}
             </View>
           ))}
-        </ScrollView>
+        </Animated.ScrollView>
       )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
+  container: { flex: 1, backgroundColor: "#fff" },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 40,
+    marginTop: Platform.OS === "android" ? StatusBar.currentHeight! + 48 : 60,
     paddingHorizontal: 20,
-    paddingBottom: 10,
-    height: 170,
+    paddingBottom: 8,
+    backgroundColor: "#fff",
+    borderBottomWidth: 2,
+    borderBottomColor: "#0047ff",
   },
-  arrow: { fontSize: 28, color: "#fff", paddingHorizontal: 10 },
-  arrowDisabled: { color: "#333" },
-  title: { fontSize: 22, color: "#fff", fontWeight: "600" },
-  loader: { marginTop: 50 },
+  arrow: {
+    fontSize: 32,
+    color: "#0047ff",
+  },
+  arrowDisabled: {
+    color: "#ccc",
+  },
+  dateContainer: {
+    alignItems: "center",
+  },
+  weekday: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#000",
+    letterSpacing: 1,
+  },
+  dateText: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#0047ff",
+    letterSpacing: 2,
+    marginTop: 2,
+  },
+  loader: {
+    marginTop: 40,
+  },
   errorText: {
-    color: "#ff4444",
+    color: "#e63946",
     textAlign: "center",
     marginTop: 20,
     fontSize: 16,
-  },
-  scrollArea: { paddingHorizontal: 20, paddingBottom: 30 },
-  timeBlock: { marginBottom: 30 },
-  time: {
-    color: "#666",
-    fontSize: 16,
     fontWeight: "600",
+  },
+  scrollArea: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: 32,
+  },
+  timeBlock: {
+    marginBottom: 32,
+  },
+  time: {
+    color: "#0047ff",
+    fontSize: 16,
+    fontWeight: "700",
     marginBottom: 12,
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
   cardWrapper: {
-    borderRadius: 16,
-    marginBottom: 12,
-    overflow: "hidden",
+    marginBottom: 16,
   },
-  card: { padding: 16, borderRadius: 16 },
-  eventTitle: { fontSize: 18, fontWeight: "600", color: "#fff" },
-  location: { fontSize: 14, color: "#ccc", marginTop: 4 },
+  card: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    borderRadius: 0,
+    borderLeftWidth: 6,
+    borderLeftColor: "#0047ff",
+    overflow: "hidden",
+    // **Reduced shadow for a flatter Bauhaus feel**
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  accentBar: {
+    width: 6,
+    backgroundColor: "#0047ff",
+  },
+  cardContent: {
+    flex: 1,
+    padding: 16,
+  },
+  eventTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#000",
+    marginBottom: 4,
+    lineHeight: 22,
+  },
+  location: {
+    fontSize: 14,
+    color: "#555",
+    opacity: 0.8,
+  },
 });

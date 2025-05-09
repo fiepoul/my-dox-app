@@ -1,6 +1,8 @@
 // app/signup.tsx
-import React, { useState } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import {
+  SafeAreaView,
   View,
   Text,
   TextInput,
@@ -8,56 +10,86 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Keyboard,
+  Dimensions,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from './_config/firebaseconfig';
-import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { setDoc, doc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const SHAPE_SIZE = 200;
 
 export default function SignupScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail]     = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [error, setError]       = useState<string|null>(null);
+  const [loading, setLoading]   = useState(false);
+
+  // Animations
+  const circAnim = useRef(new Animated.Value(0)).current;
+  const rectAnim = useRef(new Animated.Value(0)).current;
+  const meltAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // loop circle
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(circAnim, { toValue:1, duration:8000, easing:Easing.linear, useNativeDriver:true }),
+        Animated.timing(circAnim, { toValue:0, duration:8000, easing:Easing.linear, useNativeDriver:true }),
+      ])
+    ).start();
+    // loop rect
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(rectAnim, { toValue:1, duration:10000, easing:Easing.inOut(Easing.ease), useNativeDriver:true }),
+        Animated.timing(rectAnim, { toValue:0, duration:10000, easing:Easing.inOut(Easing.ease), useNativeDriver:true }),
+      ])
+    ).start();
+    // melt heading
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(meltAnim, { toValue:1, duration:2500, easing:Easing.inOut(Easing.quad), useNativeDriver:true }),
+        Animated.timing(meltAnim, { toValue:0, duration:2500, easing:Easing.inOut(Easing.quad), useNativeDriver:true }),
+      ])
+    ).start();
+  }, []);
 
   const handleSignup = async () => {
     setError(null);
     setLoading(true);
+    Keyboard.dismiss();
     try {
-      // 1) Opret bruger i Firebase Auth
-      const cred = await createUserWithEmailAndPassword(
-        auth,
-        email.trim(),
-        password
-      );
-      const uid = cred.user.uid;
+      if (!fullName.trim() || !username.trim()) {
+        throw new Error('Please fill in name & username');
+      }
+      // check username uniqueness
+      const q = query(collection(db, 'users'), where('username','==',username.trim()));
+      const snap = await getDocs(q);
+      if (!snap.empty) throw new Error('Username taken');
 
-      // 2) Opret Firestore-document for brugeren
-      await setDoc(doc(db, 'users', uid), {
-        createdAt: serverTimestamp()
+      const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const uid = cred.user.uid;
+      await setDoc(doc(db,'users',uid),{
+        fullName: fullName.trim(),
+        username: username.trim(),
+        createdAt: serverTimestamp(),
+        friends: [],
       });
 
-      // 3) Haptisk feedback på native platforme
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(
-          Haptics.NotificationFeedbackType.Success
-        );
-      }
-
-      // 4) Naviger ind i app’en
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/');
-    } catch (e: any) {
-      setError(e.message || 'Kunne ikke oprette bruger');
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(
-          Haptics.NotificationFeedbackType.Error
-        );
-      }
+    } catch(e: any) {
+      setError(e.message || 'Could not create account');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
     }
@@ -65,133 +97,178 @@ export default function SignupScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS==='ios'?'padding':undefined}
       style={styles.container}
     >
-      <LinearGradient
-        colors={['#0a0a0a', '#1c1c1c']}
-        style={StyleSheet.absoluteFill}
-      />
+      {/* Surreal shapes */}
+      <Animated.View style={[
+        styles.circle,
+        {
+          transform: [{
+            translateX: circAnim.interpolate({ inputRange:[0,1], outputRange:[-SHAPE_SIZE, SCREEN_WIDTH*0.7] })
+          },{
+            translateY: circAnim.interpolate({ inputRange:[0,1], outputRange:[-SHAPE_SIZE*0.6, SCREEN_HEIGHT*0.3] })
+          }]
+        }
+      ]}/>
+      <Animated.View style={[
+        styles.rect,
+        {
+          transform: [{
+            rotate: rectAnim.interpolate({ inputRange:[0,1], outputRange:['0deg','360deg'] })
+          }]
+        }
+      ]}/>
 
-      <View style={styles.inner}>
-        <Text style={styles.title}>Opret Konto</Text>
+      <SafeAreaView style={styles.inner}>
+        {/* Melted heading */}
+        <Animated.Text style={[
+          styles.heading,
+          {
+            transform: [
+              { skewX: meltAnim.interpolate({inputRange:[0,1],outputRange:['0deg','12deg']}) },
+              { translateY: meltAnim.interpolate({inputRange:[0,1],outputRange:[0,8]}) }
+            ],
+            opacity: meltAnim.interpolate({inputRange:[0,1],outputRange:[1,0.8]})
+          }
+        ]}>
+          SIGN UP
+        </Animated.Text>
+
+        {/* Brief description */}
+        <Text style={styles.brief}>
+          Become part of the DOX universe.
+        </Text>
+
+        <View style={styles.frame}>
+          <TextInput
+            placeholder="Full Name"
+            placeholderTextColor="#555"
+            style={styles.input}
+            value={fullName}
+            onChangeText={setFullName}
+          />
+          <TextInput
+            placeholder="Username"
+            placeholderTextColor="#555"
+            style={styles.input}
+            value={username}
+            onChangeText={setUsername}
+          />
+          <TextInput
+            placeholder="Email"
+            placeholderTextColor="#555"
+            style={styles.input}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TextInput
+            placeholder="Password"
+            placeholderTextColor="#555"
+            style={styles.input}
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
+
+          <Pressable onPress={handleSignup} style={styles.signupBtn}>
+            {loading
+              ? <ActivityIndicator color="#fff"/>
+              : <Text style={styles.signupText}>CREATE</Text>
+            }
+          </Pressable>
+
+          <Pressable onPress={()=>router.back()} style={styles.loginLink}>
+            <Text style={styles.loginText}>Already have an account? LOGIN →</Text>
+          </Pressable>
+        </View>
 
         {error && (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
-
-        <BlurView intensity={80} tint="dark" style={styles.card}>
-          <TextInput
-            placeholder="Email"
-            placeholderTextColor="#ccc"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-          />
-          <TextInput
-            placeholder="Password"
-            placeholderTextColor="#ccc"
-            secureTextEntry
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-          />
-
-          <Pressable
-            onPress={handleSignup}
-            style={styles.button}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <LinearGradient
-              colors={['#ff5f6d', '#ffc371']}
-              style={styles.buttonBackground}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Opret Konto</Text>
-              )}
-            </LinearGradient>
-          </Pressable>
-
-          <Pressable onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={styles.switchText}>
-              Har allerede en konto? Log ind →
-            </Text>
-          </Pressable>
-        </BlurView>
-      </View>
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  inner: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 24
+  container: { flex:1, backgroundColor:'#fff' },
+  inner: { flex:1, alignItems:'center', justifyContent:'center', padding:24 },
+  circle: {
+    position:'absolute',
+    width:SHAPE_SIZE,
+    height:SHAPE_SIZE,
+    borderRadius:SHAPE_SIZE/2,
+    backgroundColor:'rgba(0,68,255,0.1)'
   },
-  title: {
-    color: '#fff',
-    fontSize: 32,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 24
+  rect: {
+    position:'absolute',
+    width:SHAPE_SIZE*1.3,
+    height:SHAPE_SIZE*0.4,
+    backgroundColor:'rgba(255,64,129,0.1)'
   },
-  card: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10
+  heading: {
+    fontSize:32,
+    fontWeight:'900',
+    letterSpacing:4,
+    color:'#000',
+    marginBottom:8
+  },
+  brief: {
+    fontSize:14,
+    color:'#555',
+    fontStyle:'italic',
+    marginBottom:24,
+    textAlign:'center'
+  },
+  frame: {
+    borderWidth:2,
+    borderColor:'#000',
+    padding:20,
+    width:'90%',
+    maxWidth:320
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    color: '#fff',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)'
+    borderBottomWidth:1,
+    borderColor:'#ccc',
+    paddingVertical:12,
+    marginBottom:20,
+    fontSize:16
   },
-  button: {
-    marginTop: 8,
-    borderRadius: 12,
-    overflow: 'hidden'
+  signupBtn: {
+    backgroundColor:'#0047ff',
+    paddingVertical:14,
+    alignItems:'center',
+    marginBottom:16
   },
-  buttonBackground: {
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderRadius: 12
+  signupText: {
+    color:'#fff',
+    fontWeight:'900',
+    fontSize:16,
+    letterSpacing:2
   },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 18
+  loginLink: {
+    alignItems:'center',
+    paddingVertical:8
+  },
+  loginText: {
+    color:'#0047ff',
+    fontWeight:'700',
+    fontSize:14,
+    letterSpacing:1
   },
   errorBox: {
-    backgroundColor: 'rgba(255,68,68,0.8)',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 16
+    marginTop:16,
+    backgroundColor:'rgba(255,68,68,0.1)',
+    padding:12,
+    borderLeftWidth:4,
+    borderLeftColor:'#ff5f6d'
   },
   errorText: {
-    color: '#fff',
-    textAlign: 'center',
-    fontSize: 14
-  },
-  switchText: {
-    color: '#fff',
-    textAlign: 'center',
-    marginTop: 12,
-    textDecorationLine: 'underline'
+    color:'#990000'
   }
 });
