@@ -1,64 +1,68 @@
 // app/(tabs)/favorites.tsx
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import {
+  SafeAreaView,
   View,
   Text,
   FlatList,
   StyleSheet,
-  SafeAreaView,
   Platform,
   StatusBar,
-  Pressable,
-  TouchableOpacity,
   ActivityIndicator,
   Animated,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
 import { fetchDoxFilms } from '../api/doxFilmApi'
 import { fetchFavorites, removeFavorite } from '../api/favoritesApi'
 import type { Film } from '../types/filmTypes'
+import FilmCard from '@/components/filmCard'
 
 const HEADER_OFFSET =
   Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 60 : 60
 
 export default function FavoritesScreen() {
   const router = useRouter()
-  const [allFilms, setAllFilms] = useState<Film[]>([])
+  const [films, setFilms] = useState<Film[]>([])
   const [favIds, setFavIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const fadeAnim = useRef(new Animated.Value(0)).current
 
+  // Load data + fade-in
   useEffect(() => {
-    // fade-in animation
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start()
+    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start()
 
     let alive = true
-    Promise.all([fetchDoxFilms(), fetchFavorites()])
-      .then(([films, favArray]) => {
+    ;(async () => {
+      try {
+        const [all, favArray] = await Promise.all([fetchDoxFilms(), fetchFavorites()])
         if (!alive) return
-        setAllFilms(films)
-        // her er ID’erne strings, så vi bruger Set<string>
+        setFilms(all)
         setFavIds(new Set(favArray.map((f) => f.id.toString())))
-      })
-      .catch(console.error)
-      .finally(() => alive && setLoading(false))
-    return () => {
-      alive = false
-    }
+      } catch (e) {
+        console.error('Failed to load', e)
+      } finally {
+        alive && setLoading(false)
+      }
+    })()
+    return () => { alive = false }
   }, [])
 
-  const handleRemove = async (id: number) => {
+  // Remove a favorite
+  const handleRemove = useCallback(async (id: number) => {
     await removeFavorite(id)
-    const next = new Set(favIds)
-    next.delete(id.toString())
-    setFavIds(next)
-  }
+    setFavIds((prev) => {
+      const next = new Set(prev)
+      next.delete(id.toString())
+      return next
+    })
+  }, [])
+
+  // Only the films you’ve favorited
+  const favoriteFilms = useMemo(
+    () => films.filter((f) => favIds.has(f.id.toString())),
+    [films, favIds]
+  )
 
   if (loading) {
     return (
@@ -68,52 +72,41 @@ export default function FavoritesScreen() {
     )
   }
 
-  // filtrér filmene mod dine favoritter
-  const favFilms = allFilms.filter((f) => favIds.has(f.id.toString()))
-
   return (
     <SafeAreaView style={styles.container}>
       <FlatList
-        data={favFilms}
+        data={favoriteFilms}
         keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.list}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
+        contentContainerStyle={[
+          styles.list,
+          { paddingTop: HEADER_OFFSET + 24 }, // rykkes længere ned
+        ]}
         ListHeaderComponent={
           <View style={styles.headerBlock}>
+            <View style={styles.accentStripe} />
             <Text style={styles.headerMain}>MY FAVORITES</Text>
             <Text style={styles.headerSub}>
-              Here are the films you’ve saved. Tap a title to view details.
+              Here are the films you’ve saved. Tap a poster to dive deeper.
             </Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <View style={styles.block}>
-            <View style={styles.headerRow}>
-              <Text style={styles.user}>{item.title.toUpperCase()}</Text>
-              <Pressable onPress={() => handleRemove(item.id)} hitSlop={12}>
-                <Ionicons name="trash-outline" size={20} color="#000" />
-              </Pressable>
-            </View>
-            <TouchableOpacity
-              onPress={() =>
-                router.push({
-                  pathname: '/movie/[id]',
-                  params: { id: item.id.toString() },
-                })
-              }
-              style={styles.filmCard}
-            >
-              <Animated.View style={[styles.posterMock, { opacity: fadeAnim }]} />
-              <Text style={styles.filmTitle} numberOfLines={3}>
-                {item.title.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
         ListEmptyComponent={
-          <Text style={styles.emptyListText}>
+          <Text style={styles.emptyText}>
             YOU HAVEN’T SAVED ANY FILMS YET
           </Text>
         }
+        renderItem={({ item }) => (
+          <FilmCard
+            film={item}
+            isFavorite={true}
+            onPress={(id) =>
+              router.push({ pathname: '/movie/[id]', params: { id: id.toString() } })
+            }
+            onToggleFavorite={({ id }) => handleRemove(id)}
+          />
+        )}
       />
     </SafeAreaView>
   )
@@ -124,76 +117,49 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   list: {
-    paddingTop: HEADER_OFFSET + 8,
     paddingHorizontal: 16,
     paddingBottom: 32,
   },
-  headerBlock: { marginBottom: 24, alignItems: 'center' },
+  row: {
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+
+  headerBlock: {
+    marginBottom: 24,
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  accentStripe: {
+    width: 80,
+    height: 4,
+    backgroundColor: '#0047ff',
+    marginBottom: 8,
+    transform: [{ rotate: '-8deg' }], // lille surreal vinkel
+  },
   headerMain: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '900',
-    letterSpacing: 2,
+    letterSpacing: 3,
     textTransform: 'uppercase',
     color: '#000',
+    transform: [{ skewX: '-3deg' }], // Bauhaus/surreal hint
+    marginBottom: 6,
   },
   headerSub: {
-    marginTop: 8,
+    maxWidth: 280,
     fontSize: 14,
-    color: '#555',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-
-  block: {
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#000',
-    padding: 16,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  user: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#000',
-    letterSpacing: 1,
-    flex: 1,
-    marginRight: 8,
-  },
-
-  filmCard: {
-    marginTop: 12,
-    width: '100%',
-    aspectRatio: 2 / 3,
-    backgroundColor: '#0047FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 4,
-  },
-  posterMock: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#0047FF',
-  },
-  filmTitle: {
-    marginTop: 8,
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
+    color: '#333',
+    fontStyle: 'italic',
     textAlign: 'center',
     letterSpacing: 1,
-    paddingHorizontal: 6,
-    textTransform: 'uppercase',
   },
 
-  emptyListText: {
+  emptyText: {
     marginTop: 60,
-    fontSize: 14,
-    color: '#000',
     textAlign: 'center',
-    fontWeight: '600',
-    letterSpacing: 1,
+    color: '#777',
+    fontSize: 16,
+    fontStyle: 'italic',
   },
 })

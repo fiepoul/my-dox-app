@@ -1,5 +1,14 @@
+// components/HeaderWithLogout.tsx
+
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, Animated, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Animated,
+  Platform,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { signOut } from 'firebase/auth';
@@ -9,21 +18,19 @@ import * as Haptics from 'expo-haptics';
 
 export default function HeaderWithLogout() {
   const router = useRouter();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const fade = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
+    Animated.timing(fade, {
       toValue: 1,
-      duration: 500,
+      duration: 600,
       useNativeDriver: true,
     }).start();
   }, []);
 
   const handleLogout = async () => {
-    if (Platform.OS !== 'web') {
-      Haptics.selectionAsync();
-    }
+    if (Platform.OS !== 'web') Haptics.selectionAsync();
     try {
       await signOut(auth);
       router.replace('/login');
@@ -33,11 +40,24 @@ export default function HeaderWithLogout() {
   };
 
   return (
-    <Animated.View style={[styles.wrapper, { opacity: fadeAnim, paddingTop: insets.top }]}>       
+    <Animated.View
+      style={[
+        styles.wrapper,
+        { paddingTop: insets.top, opacity: fade },
+      ]}
+    >
       <View style={styles.container}>
-        <View style={styles.titleWrapper}>
-          <Text style={styles.title}>CPH:DOX</Text>
+        <View style={styles.logoWrapper}>
+          {/* Surrealist square behind */}
+          <View style={styles.squareBehind} />
+          {/* Bauhaus circle accent */}
+          <View style={styles.circleAccent} />
+          <Text style={styles.logoText}>
+            CPH:
+            <Text style={styles.logoHighlight}>DOX</Text>
+          </Text>
         </View>
+
         <Pressable
           onPress={handleLogout}
           style={styles.logoutButton}
@@ -52,10 +72,10 @@ export default function HeaderWithLogout() {
 
 const styles = StyleSheet.create({
   wrapper: {
-    width: '100%',
     position: 'absolute',
     top: 0,
-    backgroundColor: '#fff', // matcher din nye hvide header
+    width: '100%',
+    backgroundColor: '#fff',
     zIndex: 999,
   },
   container: {
@@ -63,19 +83,53 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingBottom: 12,
   },
-  titleWrapper: {
+
+  logoWrapper: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    // give room for our shapes
+    height: 48,
   },
-  title: {
-    color: '#000', // sort tekst for bedre kontrast
-    fontSize: 32,
+  squareBehind: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    backgroundColor: '#0047FF',
+    top: -6,
+    left: -24,
+    transform: [{ rotate: '45deg' }],
+    opacity: 0.15,
+  },
+  circleAccent: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FF8C00',
+    top: -4,
+    right: -20,
+    opacity: 0.2,
+  },
+  logoText: {
+    fontSize: 28,
     fontWeight: '900',
     letterSpacing: 4,
     textTransform: 'uppercase',
+    color: '#000',
+    fontFamily: Platform.select({
+      ios: 'HelveticaNeue-CondensedBlack',
+      android: 'sans-serif-condensed',
+    }),
+    transform: [{ skewX: '-5deg' }],
   },
+  logoHighlight: {
+    color: '#0047FF',
+    transform: [{ skewX: '5deg' }],
+  },
+
   logoutButton: {
     padding: 6,
   },

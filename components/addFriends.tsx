@@ -9,7 +9,12 @@ import {
 } from 'react-native'
 import { addFriendByUsername } from '@/app/api/userApi'
 
-export default function AddFriend() {
+interface AddFriendProps {
+  /** Optional prompt shown above input */
+  promptText?: string
+}
+
+export default function AddFriend({ promptText }: AddFriendProps) {
   const [username, setUsername] = useState('')
   const [message, setMessage] = useState('')
 
@@ -26,7 +31,12 @@ export default function AddFriend() {
 
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.heading}>ADD FRIEND</Text>
+      {/* Show custom prompt or default heading */}
+      {promptText ? (
+        <Text style={styles.prompt}>{promptText.toUpperCase()}</Text>
+      ) : (
+        <Text style={styles.heading}>ADD FRIEND</Text>
+      )}
 
       <TextInput
         placeholder="USERNAME"
@@ -43,7 +53,7 @@ export default function AddFriend() {
           pressed && styles.buttonPressed,
         ]}
       >
-        <Text style={styles.buttonText}>ADD</Text>
+        <Text style={styles.buttonText}>ADD NEW FRIEND</Text>
       </Pressable>
 
       {!!message && <Text style={styles.message}>{message}</Text>}
@@ -53,12 +63,23 @@ export default function AddFriend() {
 
 const styles = StyleSheet.create({
   wrapper: {
+    width: '90%',            // make it slightly wider
+    alignSelf: 'center',
     backgroundColor: '#fff',
     paddingVertical: 32,
     paddingHorizontal: 24,
     borderWidth: 2,
     borderColor: '#000',
     marginBottom: 32,
+  },
+  prompt: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: '#FF8C00',
+    marginBottom: 12,
+    textAlign: 'center',
   },
   heading: {
     fontSize: 18,
@@ -67,6 +88,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     color: '#000',
     marginBottom: 20,
+    textAlign: 'center',
   },
   input: {
     backgroundColor: '#f4f4f4',
@@ -78,7 +100,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#000',
     marginBottom: 16,
-    borderRadius: 4, // Kun let afrundet
+    borderRadius: 4,
     letterSpacing: 1,
   },
   button: {

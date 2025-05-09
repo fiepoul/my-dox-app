@@ -1,7 +1,4 @@
-// app/(tabs)/schedule.tsx
-
-import React, { useState, useEffect, useRef } from "react";
-import { useRouter } from "expo-router";
+import React, { useState, useEffect, useRef } from 'react'
 import {
   SafeAreaView,
   View,
@@ -12,64 +9,49 @@ import {
   ActivityIndicator,
   Pressable,
   StatusBar,
-  Platform,
-} from "react-native";
-import { format } from "date-fns";
+  Platform
+} from 'react-native'
+import { useRouter } from 'expo-router'
+import { format } from 'date-fns'
+import type { ScheduleBlock } from '../types/filmTypes'
+import { fetchSchedule } from '../api/doxFilmApi'
 
-import type { ScheduleBlock } from "../types/filmTypes";
-import { fetchSchedule } from "../api/doxFilmApi";
-
-const FESTIVAL_ISO_DATES = ["2025-05-05", "2025-05-06", "2025-05-07"];
+const FESTIVAL_DATES = ['2025-05-05', '2025-05-06', '2025-05-07']
 
 export default function ScheduleScreen() {
-  const router = useRouter();
-  const festivalDates = FESTIVAL_ISO_DATES.map(d => new Date(d));
-  const todayISO = format(new Date(), "yyyy-MM-dd");
-  const initialDate =
-    festivalDates.find(d => format(d, "yyyy-MM-dd") === todayISO) ??
-    festivalDates[0];
+  const router = useRouter()
+  const dates = FESTIVAL_DATES.map(d => new Date(d))
+  const todayISO = format(new Date(), 'yyyy-MM-dd')
+  const initial = dates.find(d => format(d, 'yyyy-MM-dd') === todayISO) ?? dates[0]
 
-  const [currentDate, setCurrentDate] = useState<Date>(initialDate);
-  const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [current, setCurrent] = useState<Date>(initial)
+  const [blocks, setBlocks] = useState<ScheduleBlock[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const fade = useRef(new Animated.Value(0)).current
 
-  const isoDate = format(currentDate, "yyyy-MM-dd");
-  const currentIndex = festivalDates.findIndex(
-    d => format(d, "yyyy-MM-dd") === isoDate
-  );
-  const canPrev = currentIndex > 0;
-  const canNext = currentIndex < festivalDates.length - 1;
+  const iso = format(current, 'yyyy-MM-dd')
+  const idx = dates.findIndex(d => format(d, 'yyyy-MM-dd') === iso)
+  const prev = idx > 0
+  const next = idx < dates.length - 1
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
+  // fade on date change
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
-  }, [isoDate]);
+    fade.setValue(0)
+    Animated.timing(fade, { toValue: 1, duration: 600, useNativeDriver: true }).start()
+  }, [iso])
 
+  // fetch schedule
   useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    setError(null);
-
-    fetchSchedule(isoDate)
-      .then(fetched => {
-        if (alive) setBlocks(fetched);
-      })
-      .catch(e => {
-        console.error("Schedule fetch error:", e);
-        if (alive) setError("Could not load schedule");
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-
-    return () => { alive = false };
-  }, [isoDate]);
+    let alive = true
+    setLoading(true)
+    setError(null)
+    fetchSchedule(iso)
+      .then(data => alive && setBlocks(data))
+      .catch(() => alive && setError('Could not load schedule'))
+      .finally(() => alive && setLoading(false))
+    return () => { alive = false }
+  }, [iso])
 
   return (
     <SafeAreaView style={styles.container}>
@@ -77,56 +59,42 @@ export default function ScheduleScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <Pressable
-          onPress={() => canPrev && setCurrentDate(festivalDates[currentIndex - 1])}
-          disabled={!canPrev}
-        >
-          <Text style={[styles.arrow, !canPrev && styles.arrowDisabled]}>‹</Text>
+        <Pressable disabled={!prev} onPress={() => prev && setCurrent(dates[idx - 1])}>
+          <Text style={[styles.arrow, !prev && styles.disabled]}>‹</Text>
         </Pressable>
-
-        <View style={styles.dateContainer}>
-          <Text style={styles.weekday}>
-            {format(currentDate, "EEEE").toUpperCase()}
-          </Text>
-          <Text style={styles.dateText}>
-            {format(currentDate, "dd MMM yyyy")}
-          </Text>
+        <View style={styles.dateWrap}>
+          <Text style={styles.weekday}>{format(current, 'EEEE').toUpperCase()}</Text>
+          <Text style={styles.date}>{format(current, 'dd MMM yyyy')}</Text>
         </View>
-
-        <Pressable
-          onPress={() => canNext && setCurrentDate(festivalDates[currentIndex + 1])}
-          disabled={!canNext}
-        >
-          <Text style={[styles.arrow, !canNext && styles.arrowDisabled]}>›</Text>
+        <Pressable disabled={!next} onPress={() => next && setCurrent(dates[idx + 1])}>
+          <Text style={[styles.arrow, !next && styles.disabled]}>›</Text>
         </Pressable>
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#0047ff" style={styles.loader} />
+        <ActivityIndicator style={styles.loader} size="large" color="#0047ff" />
       ) : error ? (
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={styles.error}>{error}</Text>
       ) : (
         <Animated.ScrollView
-          style={{ opacity: fadeAnim }}
-          contentContainerStyle={styles.scrollArea}
+          style={{ opacity: fade }}
+          contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
         >
-          {blocks.map((block, i) => (
-            <View key={i} style={styles.timeBlock}>
-              <Text style={styles.time}>{block.time}</Text>
-              {block.events.map((ev, j) => (
+          {blocks.map((blk, i) => (
+            <View key={i} style={styles.block}>
+              <Text style={styles.time}>{blk.time}</Text>
+              {blk.events.map((ev, j) => (
                 <Pressable
                   key={j}
-                  onPress={() =>
-                    router.push({ pathname: "/movie/[id]", params: { id: ev.id.toString() } })
-                  }
                   style={styles.cardWrapper}
+                  onPress={() => router.push(`/movie/${ev.id}`)}
                 >
                   <View style={styles.card}>
-                    <View style={styles.accentBar} />
-                    <View style={styles.cardContent}>
-                      <Text style={styles.eventTitle}>{ev.title.toUpperCase()}</Text>
-                      <Text style={styles.location}>{ev.cinema.toUpperCase()}</Text>
+                    <View style={styles.bar} />
+                    <View style={styles.content}>
+                      <Text style={styles.title}>{ev.title.toUpperCase()}</Text>
+                      <Text style={styles.loc}>{ev.cinema.toUpperCase()}</Text>
                     </View>
                   </View>
                 </Pressable>
@@ -136,105 +104,41 @@ export default function ScheduleScreen() {
         </Animated.ScrollView>
       )}
     </SafeAreaView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: '#fff' },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: Platform.OS === "android" ? StatusBar.currentHeight! + 48 : 60,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Platform.OS === 'android'
+      ? (StatusBar.currentHeight ?? 0) + 48
+      : 60,
     paddingHorizontal: 20,
-    paddingBottom: 8,
-    backgroundColor: "#fff",
     borderBottomWidth: 2,
-    borderBottomColor: "#0047ff",
+    borderBottomColor: '#0047ff'
   },
-  arrow: {
-    fontSize: 32,
-    color: "#0047ff",
-  },
-  arrowDisabled: {
-    color: "#ccc",
-  },
-  dateContainer: {
-    alignItems: "center",
-  },
-  weekday: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#000",
-    letterSpacing: 1,
-  },
-  dateText: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: "#0047ff",
-    letterSpacing: 2,
-    marginTop: 2,
-  },
-  loader: {
-    marginTop: 40,
-  },
-  errorText: {
-    color: "#e63946",
-    textAlign: "center",
-    marginTop: 20,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  scrollArea: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingBottom: 32,
-  },
-  timeBlock: {
-    marginBottom: 32,
-  },
-  time: {
-    color: "#0047ff",
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 12,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-  },
-  cardWrapper: {
-    marginBottom: 16,
-  },
+  arrow: { fontSize: 32, color: '#0047ff' },
+  disabled: { color: '#ccc' },
+  dateWrap: { alignItems: 'center' },
+  weekday: { fontSize: 12, fontWeight: '700' },
+  date: { fontSize: 20, fontWeight: '900', color: '#0047ff', marginTop: 4 },
+  loader: { marginTop: 40 },
+  error: { marginTop: 20, textAlign: 'center', color: '#e63946' },
+  scroll: { padding: 20, paddingBottom: 32 },
+  block: { marginBottom: 32 },
+  time: { color: '#0047ff', fontWeight: '700', marginBottom: 12 },
+  cardWrapper: { marginBottom: 16 },
   card: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 0,
+    flexDirection: 'row',
     borderLeftWidth: 6,
-    borderLeftColor: "#0047ff",
-    overflow: "hidden",
-    // **Reduced shadow for a flatter Bauhaus feel**
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 2 },
+    borderLeftColor: '#0047ff',
+    overflow: 'hidden'
   },
-  accentBar: {
-    width: 6,
-    backgroundColor: "#0047ff",
-  },
-  cardContent: {
-    flex: 1,
-    padding: 16,
-  },
-  eventTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#000",
-    marginBottom: 4,
-    lineHeight: 22,
-  },
-  location: {
-    fontSize: 14,
-    color: "#555",
-    opacity: 0.8,
-  },
-});
+  bar: { width: 6, backgroundColor: '#0047ff' },
+  content: { flex: 1, padding: 16 },
+  title: { fontSize: 18, fontWeight: '900' },
+  loc: { fontSize: 14, color: '#555', marginTop: 4 }
+})
